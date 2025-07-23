@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session
+app = Flask(__name__)
 import time
 import random
 import sqlite3
