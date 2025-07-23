@@ -1,0 +1,20 @@
+<!-- ===== templates/base.html ===== -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tasko</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="navbar">
+        <a href="/">🎯 Roll</a>
+        <a href="/lucky-draw">🎁 幸运抽奖</a>
+        <a href="/withdraw">💰 提款</a>
+        <a href="/logout">🚪 登出</a>
+    </div>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
