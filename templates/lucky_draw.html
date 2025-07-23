@@ -1,0 +1,46 @@
+<!-- ===== templates/lucky_draw.html ===== -->
+{% extends "base.html" %}
+{% block content %}
+    <h1>🎁 幸运抽奖</h1>
+
+    <div id="winner-section">
+        <h2>📅 今日中奖结果</h2>
+        <p id="today-winner">正在加载中...</p>
+    </div>
+
+    <div>
+        <h2>📜 历史中奖记录</h2>
+        <ul id="history-list">
+            <li>正在加载中...</li>
+        </ul>
+    </div>
+
+    <button onclick="window.location.href='/'">返回首页</button>
+
+    <script>
+        // 获取今日中奖结果
+        fetch('/api/today-winner')
+            .then(res => res.json())
+            .then(data => {
+                const p = document.getElementById('today-winner');
+                if (data.success) {
+                    p.innerText = `🎯 号码：${data.number} ｜ 🏆 用户 ID：${data.user}`;
+                } else {
+                    p.innerText = '今日尚未开奖。';
+                }
+            });
+
+        // 获取历史记录
+        fetch('/api/lucky-history')
+            .then(res => res.json())
+            .then(data => {
+                const ul = document.getElementById('history-list');
+                ul.innerHTML = '';
+                data.forEach(item => {
+                    const li = document.createElement('li');
+                    li.innerText = `📅 ${item.date} ｜ 🎯 ${item.number} ｜ 🏆 用户 ID：${item.user}`;
+                    ul.appendChild(li);
+                });
+            });
+    </script>
+{% endblock %}
