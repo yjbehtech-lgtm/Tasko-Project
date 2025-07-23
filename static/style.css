@@ -1,0 +1,55 @@
+/* ===== static/style.css ===== */
+body {
+    background-color: #0d1b2a;
+    font-family: Arial, sans-serif;
+    color: #f1f1f1;
+    text-align: center;
+    margin-top: 50px;
+}
+
+h1 {
+    color: #ffcc00;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #1b263b;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px;
+}
+
+button:hover {
+    background-color: #415a77;
+}
+
+.container {
+    max-width: 400px;
+    margin: auto;
+    padding: 20px;
+    background-color: #1e2a38;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+.navbar {
+    background-color: #1b263b;
+    padding: 10px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.navbar a {
+    color: #ffcc00;
+    margin: 0 15px;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.navbar a:hover {
+    color: #fff;
+}
