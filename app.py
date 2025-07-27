@@ -18,6 +18,10 @@ from database import (
 )
 
 app = Flask(__name__)
+@app.context_processor
+def inject_user():
+    return dict(user_id=session.get("user_id"))
+    
 app.secret_key = "tasko-secret"
 CORS(app)
 
