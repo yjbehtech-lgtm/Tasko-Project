@@ -145,6 +145,16 @@ def api_lucky_history():
         })
     return jsonify(data)
 
+@app.route("/api/user-status")
+def api_user_status():
+    ip = get_ip()
+    user = get_user_data(ip)
+    return jsonify({
+        "clicks_today": user["clicks_today"],
+        "points": user["points"]
+    })
+
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
+
