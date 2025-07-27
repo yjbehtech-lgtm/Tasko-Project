@@ -10,7 +10,10 @@ from database import (
     init_db,
     insert_lucky_number,
     update_user,
-    get_user_data
+    get_user_data,
+    get_today_lucky_numbers,
+    record_lucky_winner,
+    get_lucky_history
 )
 
 app = Flask(__name__)
@@ -20,16 +23,25 @@ CORS(app)
 DB_FILE = "tasko.db"
 COOLDOWN_SECONDS = 60
 MAX_CLICKS_PER_DAY = 20
-
 REWARD_OPTIONS = [
-    (1, 0.50),
+    (1, 0.5),
     (2, 0.25),
     (4, 0.125),
     (8, 0.0625),
-    (16, 0.03125),
-    (32, 0.015625),
-    (100, 0.015625)  # Lucky Draw ticket（目前你没用到这个）
+    ("BONUS", 0.0625)  # 送1分 + 再抽一次
 ]
+
+# 获取真实 IP（包括代理）
+def get_ip():
+    if request.environ.get('HTTP_X_FORWARDED_FOR'):
+        ip = request.environ['HTTP_X_FORWARDED_FOR'].split(',')[0]
+    else:
+        ip = request.remote_addr
+    return ip
+
+# 获取当前马来西亚时间（UTC+8）
+def now_myt():
+    return datetime.utcnow() + timedelta(hours=8)
 
 @app.route("/")
 def index():
@@ -37,39 +49,60 @@ def index():
 
 @app.route("/click")
 def click():
-    now = int(time.time())
-    session_id = session.get('id')
-    if not session_id:
-        session['id'] = os.urandom(16).hex()
-        session_id = session['id']
+    ip = get_ip()
+    now = now_myt()
+    today_str = now.strftime("%Y-%m-%d")
 
-    # 抽奖封锁时间段：23:55:00 – 23:59:59（UTC+0）
-    now_utc = datetime.utcnow()
-    if now_utc.hour == 23 and now_utc.minute >= 55:
+    # 抽奖封锁时间段（MYT）：23:55–23:59
+    if now.hour == 23 and now.minute >= 55:
         return jsonify({"error": "⚠️ 当前为抽奖结算时间，请稍后再试。"})
 
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("SELECT timestamp FROM clicks WHERE session_id = ? ORDER BY timestamp DESC LIMIT 1", (session_id,))
-        last = c.fetchone()
-        if last and now - last[0] < COOLDOWN_SECONDS:
-            return jsonify({"error": "请等待冷却时间"})
+    # 连接数据库
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
 
-        today_start = int(datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-        c.execute("SELECT COUNT(*) FROM clicks WHERE session_id = ? AND timestamp >= ?", (session_id, today_start))
-        count = c.fetchone()[0]
-        if count >= MAX_CLICKS_PER_DAY:
-            return jsonify({"error": "今天点击次数已达上限"})
+    # 用户冷却检查
+    c.execute("SELECT last_click_time, clicks_today, last_reset_date FROM users WHERE ip = ?", (ip,))
+    row = c.fetchone()
 
-        reward = random.choices([r[0] for r in REWARD_OPTIONS], weights=[r[1] for r in REWARD_OPTIONS])[0]
-        c.execute("INSERT INTO clicks (session_id, timestamp, reward) VALUES (?, ?, ?)", (session_id, now, reward))
-        conn.commit()
+    if row:
+        last_click_time = datetime.fromisoformat(row[0]) if row[0] else None
+        clicks_today = row[1] or 0
+        last_reset_date = row[2]
 
-    update_user(session_id, reward)
-    lucky_number = insert_lucky_number(session_id)
+        if last_reset_date != today_str:
+            clicks_today = 0  # 重置点击次数
+
+        if clicks_today >= MAX_CLICKS_PER_DAY:
+            return jsonify({"error": "⚠️ 今天点击次数已达上限。"})
+
+        if last_click_time and (now - last_click_time).total_seconds() < COOLDOWN_SECONDS:
+            return jsonify({"error": f"请等待冷却时间 ({COOLDOWN_SECONDS} 秒)"})
+    else:
+        clicks_today = 0
+
+    # 奖励逻辑
+    reward_choice = random.choices([r[0] for r in REWARD_OPTIONS], weights=[r[1] for r in REWARD_OPTIONS])[0]
+    rewards = []
+
+    if reward_choice == "BONUS":
+        rewards.append(1)
+        second_reward = random.choices([r[0] for r in REWARD_OPTIONS if r[0] != "BONUS"],
+                                       weights=[r[1] for r in REWARD_OPTIONS if r[0] != "BONUS"])[0]
+        rewards.append(second_reward)
+    else:
+        rewards.append(reward_choice)
+
+    total_reward = sum(rewards)
+
+    # 更新用户数据 + 存入 lucky number
+    update_user(ip, total_reward)
+    lucky_number = insert_lucky_number(ip)
+
+    conn.close()
 
     return jsonify({
-        "reward": reward,
+        "reward": rewards,
         "lucky_number": lucky_number,
         "success": True
     })
@@ -84,12 +117,11 @@ def withdraw():
 
 @app.route("/logout")
 def logout():
-    return render_template("coming_soon.html")
+    return render_template("logout.html")
 
 @app.route("/api/today-winner")
 def api_today_winner():
-    from database import get_lucky_history
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = now_myt().strftime("%Y-%m-%d")
     history = get_lucky_history(limit=1)
     if history and history[0][0] == today_str:
         return jsonify({
@@ -103,8 +135,7 @@ def api_today_winner():
 
 @app.route("/api/lucky-history")
 def api_lucky_history():
-    from database import get_lucky_history
-    records = get_lucky_history(limit=10)
+    records = get_lucky_history(limit=30)
     data = []
     for row in records:
         data.append({
