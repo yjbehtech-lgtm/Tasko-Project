@@ -1,0 +1,21 @@
+<!-- register.html -->
+{% extends "base.html" %}
+{% block content %}
+    <h2>📝 注册 Tasko 帐号</h2>
+    <form method="POST" style="max-width: 300px; margin: auto;">
+        <label>Email：</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>密码：</label><br>
+        <input type="password" name="password" required><br><br>
+
+        <label>年龄：</label><br>
+        <input type="number" name="age" min="10" max="100" required><br><br>
+
+        <button type="submit">✅ 注册</button>
+    </form>
+
+    <p style="text-align: center; margin-top: 20px;">
+        已有帐号？<a href="/login">点我登录</a>
+    </p>
+{% endblock %}
