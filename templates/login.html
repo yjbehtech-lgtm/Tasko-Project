@@ -1,26 +1,21 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-    <meta charset="UTF-8">
-    <title>登录 - Tasko</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <h2>🔐 用户登录</h2>
-        {% if error %}
-            <p style="color: red;">{{ error }}</p>
-        {% endif %}
-        <form method="POST">
-            <label>Email:</label><br>
-            <input type="email" name="email" required><br><br>
-            
-            <label>密码:</label><br>
-            <input type="password" name="password" required><br><br>
-            
-            <button type="submit">登录</button>
-        </form>
-        <p>还没有账户？<a href="/register">立即注册</a></p>
-    </div>
-</body>
-</html>
+<!-- login.html -->
+{% extends "base.html" %}
+{% block content %}
+    <h2>🔐 登录 Tasko 帐号</h2>
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+    <form method="POST" style="max-width: 300px; margin: auto;">
+        <label>Email：</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>密码：</label><br>
+        <input type="password" name="password" required><br><br>
+
+        <button type="submit">🔓 登录</button>
+    </form>
+
+    <p style="text-align: center; margin-top: 20px;">
+        没有帐号？<a href="/register">点我注册</a>
+    </p>
+{% endblock %}
