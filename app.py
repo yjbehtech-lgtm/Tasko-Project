@@ -79,11 +79,10 @@ def register():
             )
         """)
 
-        # 检查邮箱是否存在
         c.execute("SELECT 1 FROM users WHERE email = ?", (email,))
         if c.fetchone():
             conn.close()
-            return "此 Email 已注册，请直接登录或更换。"
+            return render_template("register.html", error="此 Email 已注册，请直接登录或更换。")
 
         c.execute("""
             INSERT INTO users (user_id, email, password, age, created_at)
@@ -98,8 +97,38 @@ def register():
 
     return render_template("register.html")
 
-# ...其余接口略（保持原样）
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if "user_id" in session:
+        return redirect("/")
 
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        hashed = hash_password(password)
+
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT user_id, password FROM users WHERE email = ?", (email,))
+        row = c.fetchone()
+        conn.close()
+
+        if row:
+            stored_user_id, stored_password = row
+            if hashed == stored_password:
+                session["user_id"] = stored_user_id
+                return redirect("/")
+            else:
+                return render_template("login.html", error="密码错误，请重试。")
+        else:
+            return render_template("login.html", error="找不到该 Email，请确认后再试。")
+
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.pop("user_id", None)
+    return render_template("logout.html")
 
 @app.route("/lucky-draw")
 def lucky_draw():
@@ -108,10 +137,6 @@ def lucky_draw():
 @app.route("/withdraw")
 def withdraw():
     return render_template("withdraw.html")
-
-@app.route("/logout")
-def logout():
-    return render_template("logout.html")
 
 @app.route("/api/today-winner")
 def api_today_winner():
@@ -151,4 +176,3 @@ def api_user_status():
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
-
