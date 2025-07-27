@@ -1,8 +1,9 @@
-# database.py
+# database.py (Tasko V4 上半段版本)
 
 import sqlite3
 from datetime import datetime, timedelta
 import random
+import string
 
 DATABASE_NAME = "tasko.db"
 
@@ -28,8 +29,8 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS lucky_numbers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT,
-            number TEXT UNIQUE,
+            ip TEXT,
+            number TEXT,
             created_at TEXT
         )
     ''')
@@ -40,7 +41,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT,
             number TEXT,
-            session_id TEXT
+            ip TEXT
         )
     ''')
 
@@ -59,7 +60,7 @@ def update_user(ip, reward):
     conn = get_connection()
     cursor = conn.cursor()
 
-    now = datetime.utcnow()
+    now = datetime.utcnow() + timedelta(hours=8)
     today = now.strftime("%Y-%m-%d")
 
     user = get_user(ip)
@@ -113,23 +114,36 @@ def get_user_data(ip):
 
 # 🎯 Lucky Number 功能
 
-def insert_lucky_number(session_id):
+def generate_lucky_code():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
+
+def insert_lucky_number(ip):
     conn = get_connection()
     cursor = conn.cursor()
 
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
 
-    # 生成唯一幸运号码
+    # 每 IP 每日最多 20 个
+    cursor.execute('''
+        SELECT COUNT(*) FROM lucky_numbers
+        WHERE ip = ? AND created_at LIKE ?
+    ''', (ip, today_str + "%"))
+    count = cursor.fetchone()[0]
+    if count >= 20:
+        return "（已达今日上限）"
+
+    # 生成唯一 lucky number
     while True:
-        lucky_number = "{:07d}".format(random.randint(0, 9999999))
-        cursor.execute("SELECT 1 FROM lucky_numbers WHERE number = ? AND created_at LIKE ?", (lucky_number, today_str + "%"))
+        lucky_number = generate_lucky_code()
+        cursor.execute("SELECT 1 FROM lucky_numbers WHERE number = ? AND created_at LIKE ?",
+                       (lucky_number, today_str + "%"))
         if not cursor.fetchone():
             break
 
     cursor.execute('''
-        INSERT INTO lucky_numbers (session_id, number, created_at)
+        INSERT INTO lucky_numbers (ip, number, created_at)
         VALUES (?, ?, ?)
-    ''', (session_id, lucky_number, datetime.utcnow().isoformat()))
+    ''', (ip, lucky_number, datetime.utcnow().isoformat()))
 
     conn.commit()
     conn.close()
@@ -138,23 +152,23 @@ def insert_lucky_number(session_id):
 def get_today_lucky_numbers():
     conn = get_connection()
     cursor = conn.cursor()
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    today_str = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
     cursor.execute('''
-        SELECT number FROM lucky_numbers
+        SELECT number, ip FROM lucky_numbers
         WHERE created_at LIKE ?
     ''', (today_str + "%",))
-    numbers = [row[0] for row in cursor.fetchall()]
+    numbers = cursor.fetchall()
     conn.close()
     return numbers
 
-def record_lucky_winner(lucky_number, session_id):
+def record_lucky_winner(lucky_number, ip):
     conn = get_connection()
     cursor = conn.cursor()
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    date_str = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
     cursor.execute('''
-        INSERT INTO lucky_winners (date, number, session_id)
+        INSERT INTO lucky_winners (date, number, ip)
         VALUES (?, ?, ?)
-    ''', (date_str, lucky_number, session_id))
+    ''', (date_str, lucky_number, ip))
     conn.commit()
     conn.close()
 
@@ -162,7 +176,7 @@ def get_lucky_history(limit=10):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT date, number, session_id FROM lucky_winners
+        SELECT date, number, ip FROM lucky_winners
         ORDER BY date DESC
         LIMIT ?
     ''', (limit,))
