@@ -253,12 +253,22 @@ def api_lucky_history():
 
 @app.route("/api/user-status")
 def api_user_status():
-    ip = get_ip()
-    user = get_user_data(ip)
-    return jsonify({
-        "clicks_today": user["clicks_today"],
-        "points": user["points"]
-    })
+    if "user_id" not in session:
+        return jsonify({"clicks_today": 0, "points": 0})
+
+    user_id = session["user_id"]
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT clicks_today, points FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        clicks_today, points = row
+        return jsonify({"clicks_today": clicks_today, "points": points})
+    else:
+        return jsonify({"clicks_today": 0, "points": 0})
+
 
 if __name__ == '__main__':
     init_db()
