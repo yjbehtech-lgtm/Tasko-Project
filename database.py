@@ -127,3 +127,7 @@ def get_lucky_history(limit=10):
 
     conn.close()
     return records
+
+# 🛠️ 占位用的 update_user（为了避免导入失败）
+def update_user(*args, **kwargs):
+    print("[Warning] 调用了占位的 update_user()，该函数尚未实现。")
