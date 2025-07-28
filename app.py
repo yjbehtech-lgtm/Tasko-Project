@@ -140,6 +140,78 @@ def login():
 
     return render_template("login.html")
 
+@app.route("/click")
+def click():
+    if "user_id" not in session:
+        return jsonify({"error": "请先登录才能获取奖励。"})
+
+    user_id = session["user_id"]
+    now = now_myt()
+    today = now.strftime("%Y-%m-%d")
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    # 获取用户资料
+    c.execute("SELECT points, clicks_today, last_reset_date, referrer_id FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "用户资料异常。"})
+
+    points, clicks_today, last_reset, referrer_id = row
+
+    # 重置点击数（若跨天）
+    if last_reset != today:
+        clicks_today = 0
+
+    if clicks_today >= MAX_CLICKS_PER_DAY:
+        conn.close()
+        return jsonify({"error": "今日点击次数已达上限。"})
+
+    # 发放奖励
+    reward_pool = []
+    total_reward = 0
+    lucky_number = ""
+
+    for value, prob in REWARD_OPTIONS:
+        if random.random() < prob:
+            if value == "BONUS":
+                reward_pool.append("🎁 免费再抽一次")
+            else:
+                reward_pool.append(str(value))
+                total_reward += value
+            break
+
+    # 更新当前用户积分
+    new_points = points + total_reward
+    c.execute("""
+        UPDATE users
+        SET points = ?, clicks_today = ?, last_click_time = ?, last_reset_date = ?
+        WHERE user_id = ?
+    """, (new_points, clicks_today + 1, now.isoformat(), today, user_id))
+
+    # 分给推荐人一半积分（仅整数，忽略 BONUS 和小数）
+    if referrer_id and total_reward in [1, 2, 4, 8]:
+        bonus = total_reward / 2
+        c.execute("SELECT points FROM users WHERE user_id = ?", (referrer_id,))
+        ref_row = c.fetchone()
+        if ref_row:
+            new_ref_points = ref_row[0] + bonus
+            c.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_ref_points, referrer_id))
+
+    # 生成 lucky number（写入数据库）
+    lucky_number = insert_lucky_number(user_id)
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "reward": reward_pool,
+        "lucky_number": lucky_number
+    })
+
+
 @app.route("/logout")
 def logout():
     session.pop("user_id", None)
