@@ -62,6 +62,7 @@ def register():
         email = request.form.get("email")
         password = request.form.get("password")
         age = request.form.get("age")
+        referrer = request.form.get("referrer") or None
         user_id = generate_user_id()
         hashed = hash_password(password)
         created_at = now_myt().isoformat()
@@ -83,15 +84,24 @@ def register():
             )
         """)
 
+        # Email 已注册
         c.execute("SELECT 1 FROM users WHERE email = ?", (email,))
         if c.fetchone():
             conn.close()
             return render_template("register.html", error="此 Email 已注册，请直接登录或更换。")
 
+        # 如果填写推荐人 ID，就验证是否存在
+        if referrer:
+            c.execute("SELECT 1 FROM users WHERE user_id = ?", (referrer,))
+            if not c.fetchone():
+                conn.close()
+                return render_template("register.html", error="推荐人 ID 无效，请检查是否输入正确。")
+
+        # 插入新用户
         c.execute("""
-            INSERT INTO users (user_id, email, password, age, created_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (user_id, email, hashed, age, created_at))
+            INSERT INTO users (user_id, email, password, age, referrer_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, email, hashed, age, referrer, created_at))
 
         conn.commit()
         conn.close()
@@ -100,6 +110,7 @@ def register():
         return redirect("/")
 
     return render_template("register.html")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
