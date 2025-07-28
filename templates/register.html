@@ -2,6 +2,11 @@
 {% extends "base.html" %}
 {% block content %}
     <h2>📝 注册 Tasko 帐号</h2>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
     <form method="POST" style="max-width: 300px; margin: auto;">
         <label>Email：</label><br>
         <input type="email" name="email" required><br><br>
@@ -11,6 +16,9 @@
 
         <label>年龄：</label><br>
         <input type="number" name="age" min="10" max="100" required><br><br>
+
+        <label>推荐人 ID（可选）：</label><br>
+        <input type="text" name="referrer"><br><br>
 
         <button type="submit">✅ 注册</button>
     </form>
