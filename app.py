@@ -10,6 +10,7 @@ import hashlib
 from database import (
     init_db,
     insert_lucky_number,
+    update_user
     get_user_data,
     get_today_lucky_numbers,
     record_lucky_winner,
