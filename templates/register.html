@@ -1,12 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>注册 | Tasko</title>
-</head>
-<body>
-    <h2>注册</h2>
-    <form method="post" action="/register">
+<!-- templates/register.html -->
+{% extends "base.html" %}
+{% block content %}
+    <h2>📝 注册 Tasko 帐号</h2>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST" style="max-width: 300px; margin: auto;">
         <label>Email:</label><br>
         <input type="email" name="email" required><br><br>
 
@@ -22,18 +23,10 @@
         <label>推荐码（可选）:</label><br>
         <input type="text" name="referrer_id"><br><br>
 
-        <input type="submit" value="注册">
+        <button type="submit">✅ 注册</button>
     </form>
 
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
-
-    <p>已有帐号？<a href="/login">点击登录</a></p>
-</body>
-</html>
-
     <p style="text-align: center; margin-top: 20px;">
-        已有帐号？<a href="/login">点我登录</a>
+        已有帐号？<a href="/login">点击登录</a>
     </p>
 {% endblock %}
