@@ -1,20 +1,29 @@
-# database.py（已升级支持 user_id）
-
 import sqlite3
+import os
 from datetime import datetime, timedelta
-import random
-import string
 
-DATABASE_NAME = "tasko.db"
+DB_FILE = "tasko.db"
 
 def get_connection():
-    return sqlite3.connect(DATABASE_NAME)
+    return sqlite3.connect(DB_FILE)
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # 注册用户表（保持不变）
+    # 检查 users 表是否存在且字段齐全
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+    exists = cursor.fetchone()
+
+    if exists:
+        # 检查字段完整性
+        try:
+            cursor.execute("SELECT user_id, email, password, age, points, clicks_today, last_click_time, last_reset_date, referrer_id, created_at FROM users LIMIT 1")
+        except sqlite3.OperationalError as e:
+            print("[!] 检测到旧表结构错误，自动重建 users 表：", e)
+            cursor.execute("DROP TABLE users")
+
+    # 创建 users 表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
@@ -30,125 +39,61 @@ def init_db():
         )
     ''')
 
-    # 🎯 幸运号码表（以 user_id 替代 IP）
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS lucky_numbers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            number TEXT,
-            created_at TEXT
-        )
-    ''')
-
-    # 🏆 抽奖记录表（以 user_id 替代 IP）
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS lucky_winners (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            number TEXT,
-            user_id TEXT
-        )
-    ''')
-
     conn.commit()
     conn.close()
 
-# 🔁 Lucky Number 功能
-
-def generate_lucky_code():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
-
-def insert_lucky_number(user_id):
+def create_user(user_id, email, password, age, referrer_id=None):
     conn = get_connection()
     cursor = conn.cursor()
-
-    today_str = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
-
-    # 每用户每日最多 20 个 lucky number
+    now = datetime.utcnow().isoformat()
     cursor.execute('''
-        SELECT COUNT(*) FROM lucky_numbers
-        WHERE user_id = ? AND created_at LIKE ?
-    ''', (user_id, today_str + "%"))
-    count = cursor.fetchone()[0]
-    if count >= 20:
-        return "（已达今日上限）"
-
-    # 生成唯一 lucky number
-    while True:
-        lucky_number = generate_lucky_code()
-        cursor.execute("SELECT 1 FROM lucky_numbers WHERE number = ? AND created_at LIKE ?",
-                       (lucky_number, today_str + "%"))
-        if not cursor.fetchone():
-            break
-
-    cursor.execute('''
-        INSERT INTO lucky_numbers (user_id, number, created_at)
-        VALUES (?, ?, ?)
-    ''', (user_id, lucky_number, datetime.utcnow().isoformat()))
-
-    conn.commit()
-    conn.close()
-    return lucky_number
-
-def get_today_lucky_numbers():
-    conn = get_connection()
-    cursor = conn.cursor()
-    today_str = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
-    cursor.execute('''
-        SELECT number, user_id FROM lucky_numbers
-        WHERE created_at LIKE ?
-    ''', (today_str + "%",))
-    numbers = cursor.fetchall()
-    conn.close()
-    return numbers
-
-def record_lucky_winner(lucky_number, user_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    date_str = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
-    cursor.execute('''
-        INSERT INTO lucky_winners (date, number, user_id)
-        VALUES (?, ?, ?)
-    ''', (date_str, lucky_number, user_id))
+        INSERT INTO users (user_id, email, password, age, referrer_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, email, password, age, referrer_id, now))
     conn.commit()
     conn.close()
 
-def get_lucky_history(limit=10):
+def get_user_by_email(email):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        SELECT date, number, user_id FROM lucky_winners
-        ORDER BY date DESC
-        LIMIT ?
-    ''', (limit,))
-    records = cursor.fetchall()
+    cursor.execute("SELECT user_id, password FROM users WHERE email = ?", (email,))
+    result = cursor.fetchone()
     conn.close()
-    return records
+    return result
 
+def get_user_points(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
     conn.close()
-    return records
+    return row[0] if row else 0
+
+def get_click_info(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT clicks_today, last_click_time, last_reset_date FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row if row else (0, None, None)
 
 def update_user(user_id, reward_points):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # 获取当前日期（用于点击次数每日限制）
     today = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
-
-    # 查询用户最后更新 clicks_today 的时间
     cursor.execute("SELECT last_reset_date, clicks_today FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
 
     if row:
         last_reset_date, clicks_today = row
         if last_reset_date != today:
-            clicks_today = 0  # 新的一天，重置点击次数
+            clicks_today = 0
     else:
         print(f"[Error] 用户 {user_id} 不存在")
         conn.close()
         return
 
-    # 更新用户积分与点击次数
     cursor.execute('''
         UPDATE users
         SET points = points + ?,
