@@ -66,26 +66,25 @@ def insert_lucky_number(user_id):
         now = datetime.utcnow() + timedelta(hours=8)
         today_str = now.strftime("%Y-%m-%d")
 
-        # 统计今日已生成数量
+        # 🔁 修改为 substr 截断 created_at，只取日期部分匹配
         cursor.execute('''
             SELECT COUNT(*) FROM lucky_numbers
-            WHERE user_id = ? AND created_at LIKE ?
-        ''', (user_id, today_str + "%"))
+            WHERE user_id = ? AND substr(created_at, 1, 10) = ?
+        ''', (user_id, today_str))
         count = cursor.fetchone()[0]
 
         if count >= 20:
             conn.close()
             return "（已达今日上限）"
 
-        # 循环生成唯一 lucky number
         attempts = 0
         max_attempts = 10
         while attempts < max_attempts:
             lucky_number = generate_lucky_code()
             cursor.execute('''
                 SELECT 1 FROM lucky_numbers
-                WHERE number = ? AND created_at LIKE ?
-            ''', (lucky_number, today_str + "%"))
+                WHERE number = ? AND substr(created_at, 1, 10) = ?
+            ''', (lucky_number, today_str))
             if not cursor.fetchone():
                 break
             attempts += 1
@@ -98,10 +97,11 @@ def insert_lucky_number(user_id):
             INSERT INTO lucky_numbers (user_id, number, created_at)
             VALUES (?, ?, ?)
         ''', (user_id, lucky_number, now.isoformat()))
+
         conn.commit()
         conn.close()
-
         return lucky_number
+
     except Exception as e:
         print(f"[❌ insert_lucky_number ERROR] user_id={user_id}, error={e}")
         return "（生成失败）"
