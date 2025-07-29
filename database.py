@@ -66,45 +66,36 @@ def insert_lucky_number(user_id):
         now = datetime.utcnow() + timedelta(hours=8)
         today_str = now.strftime("%Y-%m-%d")
 
-        print(f"[🔍 DEBUG] Now: {now.isoformat()}, today_str={today_str}")
-
         cursor.execute('''
             SELECT COUNT(*) FROM lucky_numbers
             WHERE user_id = ? AND substr(created_at, 1, 10) = ?
         ''', (user_id, today_str))
         count = cursor.fetchone()[0]
-        print(f"[ℹ️] 今日已生成次数：{count}")
 
         if count >= 20:
             conn.close()
             return "（已达今日上限）"
 
-        attempts = 0
-        max_attempts = 10
-        while attempts < max_attempts:
-            lucky_number = generate_lucky_code()
+        max_attempts = 100
+        for _ in range(max_attempts):
+            lucky_number = ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
             cursor.execute('''
                 SELECT 1 FROM lucky_numbers
                 WHERE number = ? AND substr(created_at, 1, 10) = ?
             ''', (lucky_number, today_str))
             if not cursor.fetchone():
-                break
-            attempts += 1
+                cursor.execute('''
+                    INSERT INTO lucky_numbers (user_id, number, created_at)
+                    VALUES (?, ?, ?)
+                ''', (user_id, lucky_number, now.isoformat()))
+                conn.commit()
+                conn.close()
+                print(f"[✅ LuckyNumber] user={user_id} → {lucky_number}")
+                return lucky_number
 
-        if attempts >= max_attempts:
-            conn.close()
-            print("[❌] 超过最大尝试次数，号码重复")
-            return "（生成失败：号码冲突）"
-
-        cursor.execute('''
-            INSERT INTO lucky_numbers (user_id, number, created_at)
-            VALUES (?, ?, ?)
-        ''', (user_id, lucky_number, now.isoformat()))
-
-        conn.commit()
         conn.close()
-        print(f"[✅] 成功插入 lucky number：{lucky_number}")
-        return lucky_number
+        print("[❌] 超过最大尝试次数，号码重复")
+        return "（生成失败：号码冲突）"
 
     except Exception as e:
         print(f"[❌ insert_lucky_number ERROR] user_id={user_id}, error={e}")
