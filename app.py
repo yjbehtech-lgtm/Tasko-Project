@@ -189,6 +189,7 @@ def click():
         WHERE user_id = ?
     """, (new_points, clicks_today + 1, now.isoformat(), today, user_id))
 
+    # 发放推荐人奖励
     if referrer_id and total_reward in [1, 2, 4, 8]:
         bonus = total_reward / 2
         c.execute("SELECT points FROM users WHERE user_id = ?", (referrer_id,))
@@ -197,11 +198,13 @@ def click():
             new_ref_points = ref_row[0] + bonus
             c.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_ref_points, referrer_id))
 
-    # 插入 lucky number，如果失败则用提示字串
+    # 插入 Lucky Number
     try:
         lucky_number = insert_lucky_number(user_id)
+        print(f"[✅ LuckyNumber] user={user_id} → {lucky_number}")
     except Exception as e:
-        lucky_number = "生成失败"
+        print(f"[❌ LuckyNumber Error] user={user_id} → {e}")
+        lucky_number = "（生成失败）"
 
     conn.commit()
     conn.close()
