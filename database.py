@@ -66,12 +66,14 @@ def insert_lucky_number(user_id):
         now = datetime.utcnow() + timedelta(hours=8)
         today_str = now.strftime("%Y-%m-%d")
 
-        # 🔁 修改为 substr 截断 created_at，只取日期部分匹配
+        print(f"[🔍 DEBUG] Now: {now.isoformat()}, today_str={today_str}")
+
         cursor.execute('''
             SELECT COUNT(*) FROM lucky_numbers
             WHERE user_id = ? AND substr(created_at, 1, 10) = ?
         ''', (user_id, today_str))
         count = cursor.fetchone()[0]
+        print(f"[ℹ️] 今日已生成次数：{count}")
 
         if count >= 20:
             conn.close()
@@ -91,6 +93,7 @@ def insert_lucky_number(user_id):
 
         if attempts >= max_attempts:
             conn.close()
+            print("[❌] 超过最大尝试次数，号码重复")
             return "（生成失败：号码冲突）"
 
         cursor.execute('''
@@ -100,6 +103,7 @@ def insert_lucky_number(user_id):
 
         conn.commit()
         conn.close()
+        print(f"[✅] 成功插入 lucky number：{lucky_number}")
         return lucky_number
 
     except Exception as e:
