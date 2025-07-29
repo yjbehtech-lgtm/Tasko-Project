@@ -11,19 +11,27 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # 检查 users 表是否存在且字段齐全
+    # 检查 users 表是否存在
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
     exists = cursor.fetchone()
 
+    # 如果存在，就检测字段是否齐全
     if exists:
-        # 检查字段完整性
         try:
-            cursor.execute("SELECT user_id, email, password, age, points, clicks_today, last_click_time, last_reset_date, referrer_id, created_at FROM users LIMIT 1")
-        except sqlite3.OperationalError as e:
-            print("[!] 检测到旧表结构错误，自动重建 users 表：", e)
-            cursor.execute("DROP TABLE users")
+            cursor.execute("PRAGMA table_info(users);")
+            columns = [col[1] for col in cursor.fetchall()]
+            required_columns = [
+                'user_id', 'email', 'password', 'age', 'points',
+                'clicks_today', 'last_click_time', 'last_reset_date',
+                'referrer_id', 'created_at'
+            ]
+            if not all(col in columns for col in required_columns):
+                raise Exception("字段不完整，准备重建表")
+        except Exception as e:
+            print("[!] 表结构错误，删除旧表重建：", e)
+            cursor.execute("DROP TABLE IF EXISTS users")
 
-    # 创建 users 表
+    # 建立 users 表（如果不存在或已删除）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
@@ -36,7 +44,7 @@ def init_db():
             last_reset_date TEXT,
             referrer_id TEXT,
             created_at TEXT
-        )
+        );
     ''')
 
     conn.commit()
