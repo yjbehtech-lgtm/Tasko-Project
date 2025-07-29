@@ -1,27 +1,37 @@
-<!-- register.html -->
-{% extends "base.html" %}
-{% block content %}
-    <h2>📝 注册 Tasko 帐号</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>注册 | Tasko</title>
+</head>
+<body>
+    <h2>注册</h2>
+    <form method="post" action="/register">
+        <label>Email:</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>年龄:</label><br>
+        <input type="number" name="age" required><br><br>
+
+        <label>密码:</label><br>
+        <input type="password" name="password" required><br><br>
+
+        <label>确认密码:</label><br>
+        <input type="password" name="confirm_password" required><br><br>
+
+        <label>推荐码（可选）:</label><br>
+        <input type="text" name="referrer_id"><br><br>
+
+        <input type="submit" value="注册">
+    </form>
 
     {% if error %}
         <p style="color: red;">{{ error }}</p>
     {% endif %}
 
-    <form method="POST" style="max-width: 300px; margin: auto;">
-        <label>Email：</label><br>
-        <input type="email" name="email" required><br><br>
-
-        <label>密码：</label><br>
-        <input type="password" name="password" required><br><br>
-
-        <label>年龄：</label><br>
-        <input type="number" name="age" min="10" max="100" required><br><br>
-
-        <label>推荐人 ID（可选）：</label><br>
-        <input type="text" name="referrer"><br><br>
-
-        <button type="submit">✅ 注册</button>
-    </form>
+    <p>已有帐号？<a href="/login">点击登录</a></p>
+</body>
+</html>
 
     <p style="text-align: center; margin-top: 20px;">
         已有帐号？<a href="/login">点我登录</a>
