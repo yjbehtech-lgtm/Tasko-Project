@@ -128,6 +128,41 @@ def get_lucky_history(limit=10):
     conn.close()
     return records
 
-# 🛠️ 占位用的 update_user（为了避免导入失败）
-def update_user(*args, **kwargs):
-    print("[Warning] 调用了占位的 update_user()，该函数尚未实现。")
+def update_user(user_id, reward_points):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # 获取当前日期（用于点击次数每日限制）
+    today = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
+
+    # 查询用户最后更新 clicks_today 的时间
+    cursor.execute("SELECT last_reset_date, clicks_today FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+
+    if row:
+        last_reset_date, clicks_today = row
+        if last_reset_date != today:
+            clicks_today = 0  # 新的一天，重置点击次数
+    else:
+        print(f"[Error] 用户 {user_id} 不存在")
+        conn.close()
+        return
+
+    # 更新用户积分与点击次数
+    cursor.execute('''
+        UPDATE users
+        SET points = points + ?,
+            clicks_today = ?,
+            last_click_time = ?,
+            last_reset_date = ?
+        WHERE user_id = ?
+    ''', (
+        reward_points,
+        clicks_today + 1,
+        datetime.utcnow().isoformat(),
+        today,
+        user_id
+    ))
+
+    conn.commit()
+    conn.close()
