@@ -197,7 +197,11 @@ def click():
             new_ref_points = ref_row[0] + bonus
             c.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_ref_points, referrer_id))
 
-    lucky_number = insert_lucky_number(user_id)
+    # 插入 lucky number，如果失败则用提示字串
+    try:
+        lucky_number = insert_lucky_number(user_id)
+    except Exception as e:
+        lucky_number = "生成失败"
 
     conn.commit()
     conn.close()
@@ -206,6 +210,7 @@ def click():
         "reward": reward_pool,
         "lucky_number": lucky_number
     })
+
 
 @app.route("/logout")
 def logout():
