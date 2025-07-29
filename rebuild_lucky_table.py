@@ -1,22 +1,21 @@
-import sqlite3
+# rebuild_lucky_table.py
+from database import get_connection
 
-DB_NAME = "tasko.db"
-conn = sqlite3.connect(DB_NAME)
-cursor = conn.cursor()
+def rebuild_lucky_table():
+    conn = get_connection()
+    cursor = conn.cursor()
 
-print("⚠️ 删除旧 lucky_numbers 表（如果存在）...")
-cursor.execute("DROP TABLE IF EXISTS lucky_numbers")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lucky_numbers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            number TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    print("✅ lucky_numbers 表已创建（如尚未存在）")
 
-print("✅ 创建新 lucky_numbers 表...")
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS lucky_numbers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        number TEXT,
-        created_at TEXT
-    )
-''')
-
-conn.commit()
-conn.close()
-print("🎉 表已成功重建，请重新尝试 roll 获取幸运号码！")
+if __name__ == "__main__":
+    rebuild_lucky_table()
