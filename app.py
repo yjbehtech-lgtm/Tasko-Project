@@ -10,7 +10,7 @@ import hashlib
 from database import (
     init_db,
     insert_lucky_number,
-    update_user
+    update_user,
     get_user_data,
     get_today_lucky_numbers,
     record_lucky_winner,
@@ -18,10 +18,11 @@ from database import (
 )
 
 app = Flask(__name__)
+
 @app.context_processor
 def inject_user():
     return dict(user_id=session.get("user_id"))
-    
+
 app.secret_key = "tasko-secret"
 CORS(app)
 
@@ -61,14 +62,20 @@ def register():
     if request.method == "POST":
         email = request.form.get("email")
         password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
         age = request.form.get("age")
-        referrer = request.form.get("referrer") or None
+        referrer = request.form.get("referrer_id") or None
+
+        if password != confirm_password:
+            return render_template("register.html", error="两次输入的密码不一致。")
+
         user_id = generate_user_id()
         hashed = hash_password(password)
         created_at = now_myt().isoformat()
 
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
+
         c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
@@ -84,20 +91,17 @@ def register():
             )
         """)
 
-        # Email 已注册
         c.execute("SELECT 1 FROM users WHERE email = ?", (email,))
         if c.fetchone():
             conn.close()
             return render_template("register.html", error="此 Email 已注册，请直接登录或更换。")
 
-        # 如果填写推荐人 ID，就验证是否存在
         if referrer:
             c.execute("SELECT 1 FROM users WHERE user_id = ?", (referrer,))
             if not c.fetchone():
                 conn.close()
                 return render_template("register.html", error="推荐人 ID 无效，请检查是否输入正确。")
 
-        # 插入新用户
         c.execute("""
             INSERT INTO users (user_id, email, password, age, referrer_id, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -110,7 +114,6 @@ def register():
         return redirect("/")
 
     return render_template("register.html")
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -152,7 +155,6 @@ def click():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
 
-    # 获取用户资料
     c.execute("SELECT points, clicks_today, last_reset_date, referrer_id FROM users WHERE user_id = ?", (user_id,))
     row = c.fetchone()
     if not row:
@@ -161,7 +163,6 @@ def click():
 
     points, clicks_today, last_reset, referrer_id = row
 
-    # 重置点击数（若跨天）
     if last_reset != today:
         clicks_today = 0
 
@@ -169,7 +170,6 @@ def click():
         conn.close()
         return jsonify({"error": "今日点击次数已达上限。"})
 
-    # 发放奖励
     reward_pool = []
     total_reward = 0
     lucky_number = ""
@@ -183,7 +183,6 @@ def click():
                 total_reward += value
             break
 
-    # 更新当前用户积分
     new_points = points + total_reward
     c.execute("""
         UPDATE users
@@ -191,7 +190,6 @@ def click():
         WHERE user_id = ?
     """, (new_points, clicks_today + 1, now.isoformat(), today, user_id))
 
-    # 分给推荐人一半积分（仅整数，忽略 BONUS 和小数）
     if referrer_id and total_reward in [1, 2, 4, 8]:
         bonus = total_reward / 2
         c.execute("SELECT points FROM users WHERE user_id = ?", (referrer_id,))
@@ -200,7 +198,6 @@ def click():
             new_ref_points = ref_row[0] + bonus
             c.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_ref_points, referrer_id))
 
-    # 生成 lucky number（写入数据库）
     lucky_number = insert_lucky_number(user_id)
 
     conn.commit()
@@ -210,7 +207,6 @@ def click():
         "reward": reward_pool,
         "lucky_number": lucky_number
     })
-
 
 @app.route("/logout")
 def logout():
@@ -268,7 +264,6 @@ def api_user_status():
         return jsonify({"clicks_today": clicks_today, "points": points})
     else:
         return jsonify({"clicks_today": 0, "points": 0})
-
 
 if __name__ == '__main__':
     init_db()
