@@ -1,5 +1,3 @@
-# ✅ 完整版 database.py（Lucky Number 修正）
-
 import sqlite3
 from datetime import datetime, timedelta
 import random
@@ -14,7 +12,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # 注册用户表
+    # 用户表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
@@ -22,9 +20,11 @@ def init_db():
             password TEXT,
             age INTEGER,
             points REAL DEFAULT 0,
-            last_roll_time TEXT,
-            daily_rolls INTEGER DEFAULT 0,
-            referrer_id TEXT
+            clicks_today INTEGER DEFAULT 0,
+            last_click_time TEXT,
+            last_reset_date TEXT,
+            referrer_id TEXT,
+            created_at TEXT
         )
     ''')
 
@@ -33,46 +33,75 @@ def init_db():
         CREATE TABLE IF NOT EXISTS lucky_numbers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT,
-            lucky_number TEXT UNIQUE,
-            timestamp TEXT
+            number TEXT,
+            created_at TEXT
+        )
+    ''')
+
+    # 抽奖记录表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lucky_winners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            number TEXT,
+            user_id TEXT
         )
     ''')
 
     conn.commit()
     conn.close()
 
+# 生成随机幸运号码
+def generate_lucky_code():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
+
 def insert_lucky_number(user_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    max_tries = 5
-    lucky_number = None
-    for _ in range(max_tries):
-        candidate = ''.join(random.choices(string.ascii_uppercase + string.digits, k=7))
-        try:
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        now = datetime.utcnow() + timedelta(hours=8)
+        today_str = now.strftime("%Y-%m-%d")
+
+        cursor.execute('''
+            SELECT COUNT(*) FROM lucky_numbers
+            WHERE user_id = ? AND substr(created_at, 1, 10) = ?
+        ''', (user_id, today_str))
+        count = cursor.fetchone()[0]
+
+        if count >= 20:
+            conn.close()
+            return "（已达今日上限）"
+
+        attempts = 0
+        max_attempts = 10
+        while attempts < max_attempts:
+            lucky_number = generate_lucky_code()
             cursor.execute('''
-                INSERT INTO lucky_numbers (user_id, lucky_number, timestamp)
-                VALUES (?, ?, ?)
-            ''', (user_id, candidate, datetime.now().isoformat()))
-            conn.commit()
-            lucky_number = candidate
-            break
-        except sqlite3.IntegrityError:
-            continue  # 如果重复就再试
-    conn.close()
-    return lucky_number
+                SELECT 1 FROM lucky_numbers
+                WHERE number = ? AND substr(created_at, 1, 10) = ?
+            ''', (lucky_number, today_str))
+            if not cursor.fetchone():
+                break
+            attempts += 1
 
-def get_latest_lucky_number(user_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT lucky_number FROM lucky_numbers
-        WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1
-    ''', (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else None
+        if attempts >= max_attempts:
+            conn.close()
+            return "（生成失败：号码冲突）"
 
-# 🎯 获取今日全部 lucky numbers
+        cursor.execute('''
+            INSERT INTO lucky_numbers (user_id, number, created_at)
+            VALUES (?, ?, ?)
+        ''', (user_id, lucky_number, now.isoformat()))
+
+        conn.commit()
+        conn.close()
+        return lucky_number
+
+    except Exception as e:
+        print(f"[❌ insert_lucky_number ERROR] user_id={user_id}, error={e}")
+        return "（生成失败）"
+
 def get_today_lucky_numbers():
     conn = get_connection()
     cursor = conn.cursor()
@@ -108,7 +137,6 @@ def get_lucky_history(limit=10):
     conn.close()
     return records
 
-# 💠 更新用户积分
 def update_user(user_id, reward_points):
     conn = get_connection()
     cursor = conn.cursor()
@@ -144,7 +172,6 @@ def update_user(user_id, reward_points):
     conn.commit()
     conn.close()
 
-# 🔍 通过 email 获取用户
 def get_user_by_email(email):
     conn = get_connection()
     cursor = conn.cursor()
