@@ -197,6 +197,9 @@ def click():
             new_ref_points = ref_row[0] + bonus
             c.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_ref_points, referrer_id))
 
+    conn.commit()
+    conn.close()
+ 
     try:
         lucky_number = insert_lucky_number(user_id)
         print(f"[✅ LuckyNumber] user={user_id} → {lucky_number}")
@@ -205,9 +208,6 @@ def click():
         traceback.print_exc()
         print(f"[❌ LuckyNumber ERROR] user={user_id} | error={e}")
         lucky_number = "（生成失败）"
-
-    conn.commit()
-    conn.close()
 
     return jsonify({
         "reward": reward_pool,
